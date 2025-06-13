@@ -21,6 +21,7 @@ def handle_audio_input(audio_file):
         audio_data = recognizer.record(source)
         try:
             text = recognizer.recognize_google(audio_data)
+            print(f"Recognized text: {text}")
             response = process_voice_input(text)
             return response
         except sr.UnknownValueError:
@@ -43,7 +44,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
 
     with gr.Accordion("📤 Document Upload & Summary", open=True):
         with gr.Row():
-            file_input = gr.File(label="Upload Document", file_types=["pdf", "docx", "txt"])
+            file_input = gr.File(label="Upload Document")
             summary_output = gr.Textbox(label="Summary", lines=10, interactive=False, show_copy_button=True)
 
     with gr.Accordion("🎤 Voice Chat", open=True):
