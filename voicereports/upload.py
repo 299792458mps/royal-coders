@@ -1,5 +1,6 @@
 import gradio as gr
 import speech_recognition as sr
+import os
 
 # Placeholder for document summarization
 def summarize_document(file):
@@ -11,6 +12,8 @@ def process_voice_input(transcribed_text):
 
 # Handle file upload and enable voice chat
 def handle_file_upload(file):
+    file_name = os.path.basename(file.name) if hasattr(file, "name") else str(file)
+    print("Uploaded file name:", file_name)
     summary = summarize_document(file)
     return summary, gr.update(interactive=True)
 
