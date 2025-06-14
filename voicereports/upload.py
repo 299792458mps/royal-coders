@@ -2,6 +2,7 @@ import gradio as gr
 import speech_recognition as sr
 import os
 from gtts import gTTS
+import tempfile
 
 def summarize_document(file):
     return "This is a placeholder summary. Replace this with actual summary logic."
@@ -33,7 +34,7 @@ def handle_file_upload(file, file_count):
 def process_voice_input(transcribed_text):
     # Simulate sending the user's question to the AI backend and getting a response.
     # Replace this with your actual AI backend call.
-    ai_response = f"AI response to: {transcribed_text}"
+    ai_response = f"{transcribed_text}"
     return ai_response
 
 def tts_response(text):
@@ -65,6 +66,14 @@ def handle_voice_chat(audio_file, chat_history):
     ai_audio = tts_response(ai_text)
     conversation_display = "\n\n".join(chat_history)
     return chat_history, ai_audio, conversation_display
+
+def export_conversation(chat_history):
+    if not chat_history:
+        return None
+    conversation_text = "\n\n".join(chat_history)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode="w", encoding="utf-8") as f:
+        f.write(conversation_text)
+        return f.name
 
 # --- Gradio UI ---
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
@@ -117,12 +126,21 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
             )
             ai_audio = gr.Audio(label="AI Speaking", interactive=False, autoplay=True)
         chat_output = gr.Textbox(label="Conversation", lines=12, interactive=False, show_copy_button=True)
+        with gr.Row():
+            export_btn = gr.Button("Export Conversation")
+            export_file = gr.File(label="Download Conversation")
 
         # Automatically process voice when recording stops
         mic_input.change(
             fn=handle_voice_chat,
             inputs=[mic_input, conversation_state],
             outputs=[conversation_state, ai_audio, chat_output]
+        )
+
+        export_btn.click(
+            fn=export_conversation,
+            inputs=[conversation_state],
+            outputs=[export_file]
         )
 
     # Enable mic_input after file upload
