@@ -1,0 +1,7 @@
+def summary_text_to_speech(summary_text):
+    if not summary_text or summary_text.strip() == "":
+        return None
+    tts = gTTS(text=summary_text, lang='en')
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as fp:
+        tts.save(fp.name)
+        return fp.name
