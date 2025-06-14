@@ -6,9 +6,6 @@ from gtts import gTTS
 def summarize_document(file):
     return "This is a placeholder summary. Replace this with actual summary logic."
 
-def process_voice_input(transcribed_text):
-    return f"Processed response to: {transcribed_text}"
-
 def summary_text_to_speech(summary_text):
     if not summary_text or summary_text.strip() == "":
         return None
@@ -22,45 +19,66 @@ def handle_file_upload(file, file_count):
     print("Uploaded file name:", file_name)
     summary = summarize_document(file)
     file_count += 1  # Increment count
-    # Generate TTS audio for the summary
     summary_audio = summary_text_to_speech(summary)
-    # Clear file input after upload
-    return summary, gr.update(value=None, interactive=True), f"Files uploaded this session: {file_count}", file_count, summary_audio
+    # Enable voice chat after upload
+    return (
+        summary,
+        gr.update(value=None, interactive=True),
+        f"Files uploaded this session: {file_count}",
+        file_count,
+        summary_audio,
+        gr.update(interactive=True),  # Enable mic_input
+    )
 
-def handle_audio_input(audio_file):
-    if audio_file is None:
-        return "No audio input provided."
+def process_voice_input(transcribed_text):
+    # Simulate sending the user's question to the AI backend and getting a response.
+    # Replace this with your actual AI backend call.
+    ai_response = f"AI response to: {transcribed_text}"
+    return ai_response
+
+def tts_response(text):
+    tts = gTTS(text=text, lang='en')
+    audio_path = "ai_response.mp3"
+    tts.save(audio_path)
+    return audio_path
+
+def transcribe_audio(audio_file):
     recognizer = sr.Recognizer()
     with sr.AudioFile(audio_file) as source:
         audio_data = recognizer.record(source)
         try:
-            text = recognizer.recognize_google(audio_data, language="en-US")
-            return process_voice_input(text)
+            user_text = recognizer.recognize_google(audio_data, language="en-US")
+            return user_text
         except sr.UnknownValueError:
-            return "Sorry, could not understand the audio."
+            return "[Unrecognized speech]"
         except sr.RequestError:
-            return "Speech recognition service is unavailable."
+            return "[Speech recognition service unavailable]"
 
-def clear_audio():
-    # This will clear the audio input and the chat output
-    return gr.update(value=None), gr.update(value="")
+def handle_voice_chat(audio_file, chat_history):
+    if audio_file is None:
+        return chat_history, None, "\n".join([f"You: {u}\nAI: {a}" for u, a in zip(chat_history[::2], chat_history[1::2])]) if chat_history else ""
+    user_text = transcribe_audio(audio_file)
+    chat_history = chat_history or []
+    chat_history.append(f"You: {user_text}")
+    ai_text = process_voice_input(user_text)
+    chat_history.append(f"AI: {ai_text}")
+    ai_audio = tts_response(ai_text)
+    conversation_display = "\n\n".join(chat_history)
+    return chat_history, ai_audio, conversation_display
 
+# --- Gradio UI ---
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
     gr.Markdown(
         """
         # 📄 Voice Reports
         **Upload a document to get a summary and enable voice chat!**
-        <br>
-        <span style='color:gray'>Step 1: Upload your document.<br>
-        Step 2: Review the summary.<br>
-        Step 3: Use your microphone to ask questions about the document.</span>
-        """,
-        elem_id="main-title"
+        """
     )
 
-    file_count_state = gr.State(0)  # Session state for file count
-
-    with gr.Accordion("📤 Document Upload & Summary", open=True):
+    # --- File Upload & Summary Block ---
+    with gr.Group():
+        gr.Markdown("## 📤 Document Upload & Summary")
+        file_count_state = gr.State(0)
         with gr.Row():
             file_input = gr.File(
                 label="Upload Document",
@@ -69,28 +87,56 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
             summary_output = gr.Textbox(label="Summary", lines=10, interactive=False, show_copy_button=True)
         file_count_display = gr.Markdown("Files uploaded this session: 0")
         gr.Markdown("**Tip:** Uploading a new file will automatically replace the previous one.")
-
         with gr.Row():
-            # Removed the Speak Summary button
             tts_audio = gr.Audio(label="Summary Audio", interactive=False, autoplay=True)
 
-    with gr.Accordion("🎤 Voice Chat", open=True):
+        file_input.upload(
+            fn=handle_file_upload,
+            inputs=[file_input, file_count_state],
+            outputs=[
+                summary_output,
+                file_input,
+                file_count_display,
+                file_count_state,
+                tts_audio,
+                # mic_input will be enabled after upload
+                # send_btn removed
+            ]
+        )
+
+    # --- Voice Chat Block ---
+    with gr.Group():
+        gr.Markdown("## 🎤 Voice Chat")
+        conversation_state = gr.State([])
         with gr.Row():
             mic_input = gr.Audio(
                 sources=["microphone"],
                 type="filepath",
                 label="Speak Now",
-                interactive=True
+                interactive=False  # Disabled until file upload
             )
-            chat_output = gr.Textbox(label="Response", lines=4, interactive=False, show_copy_button=True)
-        retry_btn = gr.Button("Retry")
+            ai_audio = gr.Audio(label="AI Speaking", interactive=False, autoplay=True)
+        chat_output = gr.Textbox(label="Conversation", lines=12, interactive=False, show_copy_button=True)
 
+        # Automatically process voice when recording stops
+        mic_input.change(
+            fn=handle_voice_chat,
+            inputs=[mic_input, conversation_state],
+            outputs=[conversation_state, ai_audio, chat_output]
+        )
+
+    # Enable mic_input after file upload
     file_input.upload(
         fn=handle_file_upload,
         inputs=[file_input, file_count_state],
-        outputs=[summary_output, mic_input, file_count_display, file_count_state, tts_audio]
+        outputs=[
+            summary_output,
+            file_input,
+            file_count_display,
+            file_count_state,
+            tts_audio,
+            mic_input  # Enable mic_input after upload
+        ]
     )
-    mic_input.change(fn=handle_audio_input, inputs=mic_input, outputs=chat_output)
-    retry_btn.click(fn=clear_audio, outputs=[mic_input, chat_output])
 
 demo.launch()
