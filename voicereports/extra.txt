@@ -1,8 +1,165 @@
+import gradio as gr
+import speech_recognition as sr
+from gtts import gTTS
+import uuid
+import os
+
+# ------------------------------
+# Placeholder summarization logic
+# ------------------------------
+def summarize_document(file):
+    return "This is a placeholder summary. Replace this with actual summary logic."
+
+# ------------------------------
+# Save TTS to /content for Colab compatibility
+# ------------------------------
 def summary_text_to_speech(summary_text):
     if not summary_text or summary_text.strip() == "":
         return None
     tts = gTTS(text=summary_text, lang='en')
-    audio_bytes = io.BytesIO()
-    tts.write_to_fp(audio_bytes)
-    audio_bytes.seek(0)
-    return audio_bytes
+    file_path = f"/content/summary_{uuid.uuid4().hex}.mp3"
+    tts.save(file_path)
+    return file_path
+
+def tts_response(text):
+    tts = gTTS(text=text, lang='en')
+    file_path = f"/content/ai_response_{uuid.uuid4().hex}.mp3"
+    tts.save(file_path)
+    return file_path
+
+# ------------------------------
+# File upload handling
+# ------------------------------
+def handle_file_upload(file, file_count):
+    file_name = os.path.basename(file.name) if hasattr(file, "name") else str(file)
+    print("Uploaded file name:", file_name)
+    summary = summarize_document(file)
+    file_count += 1
+    summary_audio = summary_text_to_speech(summary)
+    return (
+        summary,
+        gr.update(value=None, interactive=True),
+        f"Files uploaded this session: {file_count}",
+        file_count,
+        summary_audio,
+        gr.update(interactive=True)
+    )
+
+# ------------------------------
+# Voice chat processing
+# ------------------------------
+def transcribe_audio(audio_file):
+    recognizer = sr.Recognizer()
+    with sr.AudioFile(audio_file) as source:
+        audio_data = recognizer.record(source)
+        try:
+            user_text = recognizer.recognize_google(audio_data, language="en-US")
+            return user_text
+        except sr.UnknownValueError:
+            return "[Unrecognized speech]"
+        except sr.RequestError:
+            return "[Speech recognition service unavailable]"
+
+def process_voice_input(transcribed_text):
+    # Simulated AI response
+    return f"{transcribed_text}"
+
+def handle_voice_chat(audio_file, chat_history):
+    if audio_file is None:
+        return chat_history, None, "\n\n".join(chat_history) if chat_history else ""
+    user_text = transcribe_audio(audio_file)
+    chat_history = chat_history or []
+    chat_history.append(f"You: {user_text}")
+    ai_text = process_voice_input(user_text)
+    chat_history.append(f"AI: {ai_text}")
+    ai_audio = tts_response(ai_text)
+    conversation_display = "\n\n".join(chat_history)
+    return chat_history, ai_audio, conversation_display
+
+# ------------------------------
+# Export chat to /content for download
+# ------------------------------
+def export_conversation(chat_history):
+    if not chat_history:
+        return None
+    conversation_text = "\n\n".join(chat_history)
+    file_path = f"/content/conversation_{uuid.uuid4().hex}.txt"
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(conversation_text)
+    return file_path
+
+# ------------------------------
+# Gradio UI
+# ------------------------------
+with gr.Blocks(theme=gr.themes.Soft()) as demo:
+    gr.Markdown(
+        """
+        # 📄 Voice Reports
+        **Upload a document to get a summary and enable voice chat!**
+        """
+    )
+
+    # File upload section
+    with gr.Group():
+        gr.Markdown("## 📤 Document Upload & Summary")
+        file_count_state = gr.State(0)
+        with gr.Row():
+            file_input = gr.File(label="Upload Document", interactive=True)
+            summary_output = gr.Textbox(label="Summary", lines=10, interactive=False, show_copy_button=True)
+        file_count_display = gr.Markdown("Files uploaded this session: 0")
+        gr.Markdown("**Tip:** Uploading a new file will automatically replace the previous one.")
+        with gr.Row():
+            tts_audio = gr.Audio(label="Summary Audio", interactive=False, autoplay=True)
+
+        file_input.upload(
+            fn=handle_file_upload,
+            inputs=[file_input, file_count_state],
+            outputs=[
+                summary_output,
+                file_input,
+                file_count_display,
+                file_count_state,
+                tts_audio,
+                # mic_input will be enabled after upload
+            ]
+        )
+
+    # Voice chat section
+    with gr.Group():
+        gr.Markdown("## 🎤 Voice Chat")
+        conversation_state = gr.State([])
+        with gr.Row():
+            mic_input = gr.Audio(sources=["microphone"], type="filepath", label="Speak Now", interactive=False)
+            ai_audio = gr.Audio(label="AI Speaking", interactive=False, autoplay=True)
+        chat_output = gr.Textbox(label="Conversation", lines=12, interactive=False, show_copy_button=True)
+        with gr.Row():
+            export_btn = gr.Button("Export Conversation")
+            export_file = gr.File(label="Download Conversation")
+
+        mic_input.change(
+            fn=handle_voice_chat,
+            inputs=[mic_input, conversation_state],
+            outputs=[conversation_state, ai_audio, chat_output]
+        )
+
+        export_btn.click(
+            fn=export_conversation,
+            inputs=[conversation_state],
+            outputs=[export_file]
+        )
+
+    # Enable mic input after upload
+    file_input.upload(
+        fn=handle_file_upload,
+        inputs=[file_input, file_count_state],
+        outputs=[
+            summary_output,
+            file_input,
+            file_count_display,
+            file_count_state,
+            tts_audio,
+            mic_input
+        ]
+    )
+
+demo.launch()
