@@ -4,15 +4,11 @@ from gtts import gTTS
 import uuid
 import os
 
-# ------------------------------
-# Placeholder summarization logic
-# ------------------------------
+# --- Placeholder summarization logic ---
 def summarize_document(file):
     return "This is a placeholder summary. Replace this with actual summary logic."
 
-# ------------------------------
-# Save TTS to /content for Colab compatibility
-# ------------------------------
+# --- Save TTS output to /content for Colab compatibility ---
 def summary_text_to_speech(summary_text):
     if not summary_text or summary_text.strip() == "":
         return None
@@ -27,9 +23,7 @@ def tts_response(text):
     tts.save(file_path)
     return file_path
 
-# ------------------------------
-# File upload handling
-# ------------------------------
+# --- File upload handling ---
 def handle_file_upload(file, file_count):
     file_name = os.path.basename(file.name) if hasattr(file, "name") else str(file)
     print("Uploaded file name:", file_name)
@@ -42,12 +36,10 @@ def handle_file_upload(file, file_count):
         f"Files uploaded this session: {file_count}",
         file_count,
         summary_audio,
-        gr.update(interactive=True)
+        gr.update(interactive=True)  # Enable mic input
     )
 
-# ------------------------------
-# Voice chat processing
-# ------------------------------
+# --- Voice chat processing ---
 def transcribe_audio(audio_file):
     recognizer = sr.Recognizer()
     with sr.AudioFile(audio_file) as source:
@@ -61,7 +53,6 @@ def transcribe_audio(audio_file):
             return "[Speech recognition service unavailable]"
 
 def process_voice_input(transcribed_text):
-    # Simulated AI response
     return f"{transcribed_text}"
 
 def handle_voice_chat(audio_file, chat_history):
@@ -76,9 +67,7 @@ def handle_voice_chat(audio_file, chat_history):
     conversation_display = "\n\n".join(chat_history)
     return chat_history, ai_audio, conversation_display
 
-# ------------------------------
-# Export chat to /content for download
-# ------------------------------
+# --- Export conversation to downloadable file ---
 def export_conversation(chat_history):
     if not chat_history:
         return None
@@ -88,9 +77,7 @@ def export_conversation(chat_history):
         f.write(conversation_text)
     return file_path
 
-# ------------------------------
-# Gradio UI
-# ------------------------------
+# --- Gradio UI ---
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
     gr.Markdown(
         """
@@ -99,7 +86,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
         """
     )
 
-    # File upload section
+    # File Upload & Summary
     with gr.Group():
         gr.Markdown("## 📤 Document Upload & Summary")
         file_count_state = gr.State(0)
@@ -120,11 +107,11 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
                 file_count_display,
                 file_count_state,
                 tts_audio,
-                # mic_input will be enabled after upload
+                # mic_input enabled later
             ]
         )
 
-    # Voice chat section
+    # Voice Chat
     with gr.Group():
         gr.Markdown("## 🎤 Voice Chat")
         conversation_state = gr.State([])
@@ -148,7 +135,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
             outputs=[export_file]
         )
 
-    # Enable mic input after upload
+    # Enable mic after file upload
     file_input.upload(
         fn=handle_file_upload,
         inputs=[file_input, file_count_state],
