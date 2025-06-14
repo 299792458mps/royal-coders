@@ -1,6 +1,7 @@
 import gradio as gr
 import speech_recognition as sr
 import os
+from gtts import gTTS
 
 def summarize_document(file):
     return "This is a placeholder summary. Replace this with actual summary logic."
@@ -8,13 +9,23 @@ def summarize_document(file):
 def process_voice_input(transcribed_text):
     return f"Processed response to: {transcribed_text}"
 
+def summary_text_to_speech(summary_text):
+    if not summary_text or summary_text.strip() == "":
+        return None
+    tts = gTTS(text=summary_text, lang='en')
+    audio_path = "summary_tts.mp3"
+    tts.save(audio_path)
+    return audio_path
+
 def handle_file_upload(file, file_count):
     file_name = os.path.basename(file.name) if hasattr(file, "name") else str(file)
     print("Uploaded file name:", file_name)
     summary = summarize_document(file)
     file_count += 1  # Increment count
+    # Generate TTS audio for the summary
+    summary_audio = summary_text_to_speech(summary)
     # Clear file input after upload
-    return summary, gr.update(value=None, interactive=True), f"Files uploaded this session: {file_count}", file_count
+    return summary, gr.update(value=None, interactive=True), f"Files uploaded this session: {file_count}", file_count, summary_audio
 
 def handle_audio_input(audio_file):
     if audio_file is None:
@@ -59,6 +70,10 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
         file_count_display = gr.Markdown("Files uploaded this session: 0")
         gr.Markdown("**Tip:** Uploading a new file will automatically replace the previous one.")
 
+        with gr.Row():
+            # Removed the Speak Summary button
+            tts_audio = gr.Audio(label="Summary Audio", interactive=False, autoplay=True)
+
     with gr.Accordion("🎤 Voice Chat", open=True):
         with gr.Row():
             mic_input = gr.Audio(
@@ -73,7 +88,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
     file_input.upload(
         fn=handle_file_upload,
         inputs=[file_input, file_count_state],
-        outputs=[summary_output, mic_input, file_count_display, file_count_state]
+        outputs=[summary_output, mic_input, file_count_display, file_count_state, tts_audio]
     )
     mic_input.change(fn=handle_audio_input, inputs=mic_input, outputs=chat_output)
     retry_btn.click(fn=clear_audio, outputs=[mic_input, chat_output])
