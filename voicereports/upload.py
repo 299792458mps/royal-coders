@@ -2,35 +2,37 @@ import gradio as gr
 import speech_recognition as sr
 import os
 
-# Placeholder for document summarization
 def summarize_document(file):
     return "This is a placeholder summary. Replace this with actual summary logic."
 
-# Placeholder for processing voice input
 def process_voice_input(transcribed_text):
     return f"Processed response to: {transcribed_text}"
 
-# Handle file upload and enable voice chat
-def handle_file_upload(file):
+def handle_file_upload(file, file_count):
     file_name = os.path.basename(file.name) if hasattr(file, "name") else str(file)
     print("Uploaded file name:", file_name)
     summary = summarize_document(file)
-    return summary, gr.update(interactive=True)
+    file_count += 1  # Increment count
+    # Clear file input after upload
+    return summary, gr.update(value=None, interactive=True), f"Files uploaded this session: {file_count}", file_count
 
-# Handle voice input and convert to text
 def handle_audio_input(audio_file):
+    if audio_file is None:
+        return "No audio input provided."
     recognizer = sr.Recognizer()
     with sr.AudioFile(audio_file) as source:
         audio_data = recognizer.record(source)
         try:
-            text = recognizer.recognize_google(audio_data)
-            print(f"Recognized text: {text}")
-            response = process_voice_input(text)
-            return response
+            text = recognizer.recognize_google(audio_data, language="en-US")
+            return process_voice_input(text)
         except sr.UnknownValueError:
             return "Sorry, could not understand the audio."
         except sr.RequestError:
             return "Speech recognition service is unavailable."
+
+def clear_audio():
+    # This will clear the audio input and the chat output
+    return gr.update(value=None), gr.update(value="")
 
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
     gr.Markdown(
@@ -45,17 +47,35 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
         elem_id="main-title"
     )
 
+    file_count_state = gr.State(0)  # Session state for file count
+
     with gr.Accordion("📤 Document Upload & Summary", open=True):
         with gr.Row():
-            file_input = gr.File(label="Upload Document")
+            file_input = gr.File(
+                label="Upload Document",
+                interactive=True
+            )
             summary_output = gr.Textbox(label="Summary", lines=10, interactive=False, show_copy_button=True)
+        file_count_display = gr.Markdown("Files uploaded this session: 0")
+        gr.Markdown("**Tip:** Uploading a new file will automatically replace the previous one.")
 
     with gr.Accordion("🎤 Voice Chat", open=True):
         with gr.Row():
-            mic_input = gr.Audio(sources=["microphone"], type="filepath", label="Speak Now", interactive=False)
+            mic_input = gr.Audio(
+                sources=["microphone"],
+                type="filepath",
+                label="Speak Now",
+                interactive=True
+            )
             chat_output = gr.Textbox(label="Response", lines=4, interactive=False, show_copy_button=True)
+        retry_btn = gr.Button("Retry")
 
-    file_input.upload(fn=handle_file_upload, inputs=file_input, outputs=[summary_output, mic_input])
+    file_input.upload(
+        fn=handle_file_upload,
+        inputs=[file_input, file_count_state],
+        outputs=[summary_output, mic_input, file_count_display, file_count_state]
+    )
     mic_input.change(fn=handle_audio_input, inputs=mic_input, outputs=chat_output)
+    retry_btn.click(fn=clear_audio, outputs=[mic_input, chat_output])
 
 demo.launch()
